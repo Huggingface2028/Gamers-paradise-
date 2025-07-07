@@ -1,0 +1,165 @@
+// Apex Class: GameForgeServerManager
+public class GameForgeServerManager {
+    // Create a gaming server
+    @AuraEnabled
+    public static String createGameServer(String gameType, Integer playerCount) {
+        try {
+            // Call Salesforce LAM API (hypothetical) to provision server
+            Map<String, Object> serverConfig = new Map<String, Object>{
+                'gameType' => gameType,
+                'playerCount' => playerCount,
+                'region' => 'us-east-1',
+                'paywall' => true
+            };
+            HttpResponse response = SalesforceLAMAPI.provisionServer(serverConfig);
+            String serverId = (String) JSON.deserialize(response.getBody(), Map<String, Object>.class).get('serverId');
+
+            // Log server details to MongoDB via Gemini API
+            String mongoPayload = JSON.serialize(new Map<String, Object>{
+                'serverId' => serverId,
+                'gameType' => gameType,
+                'status' => 'active',
+                'createdAt' => Datetime.now()
+            });
+            GeminiAPI.logToMongoDB('servers', mongoPayload);
+
+            return serverId;
+        } catch (Exception e) {
+            throw new AuraHandledException('Server creation failed: ' + e.getMessage());
+        }
+    }
+
+    // Create user account
+    @AuraEnabled
+    public static String createUserAccount(String email, String username) {
+        try {
+            // Validate email with FraudLabs
+            HttpResponse fraudCheck = FraudLabsAPI.validateEmail(email);
+            if (!(Boolean) JSON.deserialize(fraudCheck.getBody(), Map<String, Object>.class).get('isValid')) {
+                throw new AuraHandledException('Invalid email');
+            }
+
+            // Create account in Salesforce Data Cloud
+            Map<String, Object> userData = new Map<String, Object>{
+                'email' => email,
+                'username' => username,
+                'status' => 'free',
+                'createdAt' => Datetime.now()
+            };
+            String userId = SalesforceDataCloudAPI.createRecord('User', userData);
+
+            // Log to MongoDB
+            GeminiAPI.logToMongoDB('users', JSON.serialize(userData));
+            return userId;
+        } catch (Exception e) {
+            throw new AuraHandledException('Account creation failed: ' + e.getMessage());
+        }
+    }
+
+    // Process payment for server access
+    @AuraEnabled
+    public static Boolean processPayment(String userId, String serverId, Decimal amount) {
+        try {
+            // Call Stripe API for payment
+            Map<String, Object> paymentData = new Map<String, Object>{
+                'userId' => userId,
+                'amount' => amount,
+                'currency' => 'usd',
+                'description' => 'GameForge Server Access: ' + serverId
+            };
+            HttpResponse paymentResponse = StripeAPI.charge(paymentData);
+            Boolean isSuccess = (Boolean) JSON.deserialize(paymentResponse.getBody(), Map<String, Object>.class).get('success');
+
+            if (isSuccess) {
+                // Update user status to premium
+                SalesforceDataCloudAPI.updateRecord('User', userId, new Map<String, Object>{'status' => 'premium'});
+                GeminiAPI.updateMongoDB('users', userId, new Map<String, Object>{'status' => 'premium'});
+            }
+            return isSuccess;
+        } catch (Exception e) {
+            throw new AuraHandledException('Payment failed: ' + e.getMessage());
+        }
+    }
+}// Apex Class: GameForgeServerManager
+public class GameForgeServerManager {
+    // Create a gaming server
+    @AuraEnabled
+    public static String createGameServer(String gameType, Integer playerCount) {
+        try {
+            // Call Salesforce LAM API (hypothetical) to provision server
+            Map<String, Object> serverConfig = new Map<String, Object>{
+                'gameType' => gameType,
+                'playerCount' => playerCount,
+                'region' => 'us-east-1',
+                'paywall' => true
+            };
+            HttpResponse response = SalesforceLAMAPI.provisionServer(serverConfig);
+            String serverId = (String) JSON.deserialize(response.getBody(), Map<String, Object>.class).get('serverId');
+
+            // Log server details to MongoDB via Gemini API
+            String mongoPayload = JSON.serialize(new Map<String, Object>{
+                'serverId' => serverId,
+                'gameType' => gameType,
+                'status' => 'active',
+                'createdAt' => Datetime.now()
+            });
+            GeminiAPI.logToMongoDB('servers', mongoPayload);
+
+            return serverId;
+        } catch (Exception e) {
+            throw new AuraHandledException('Server creation failed: ' + e.getMessage());
+        }
+    }
+
+    // Create user account
+    @AuraEnabled
+    public static String createUserAccount(String email, String username) {
+        try {
+            // Validate email with FraudLabs
+            HttpResponse fraudCheck = FraudLabsAPI.validateEmail(email);
+            if (!(Boolean) JSON.deserialize(fraudCheck.getBody(), Map<String, Object>.class).get('isValid')) {
+                throw new AuraHandledException('Invalid email');
+            }
+
+            // Create account in Salesforce Data Cloud
+            Map<String, Object> userData = new Map<String, Object>{
+                'email' => email,
+                'username' => username,
+                'status' => 'free',
+                'createdAt' => Datetime.now()
+            };
+            String userId = SalesforceDataCloudAPI.createRecord('User', userData);
+
+            // Log to MongoDB
+            GeminiAPI.logToMongoDB('users', JSON.serialize(userData));
+            return userId;
+        } catch (Exception e) {
+            throw new AuraHandledException('Account creation failed: ' + e.getMessage());
+        }
+    }
+
+    // Process payment for server access
+    @AuraEnabled
+    public static Boolean processPayment(String userId, String serverId, Decimal amount) {
+        try {
+            // Call Stripe API for payment
+            Map<String, Object> paymentData = new Map<String, Object>{
+                'userId' => userId,
+                'amount' => amount,
+                'currency' => 'usd',
+                'description' => 'GameForge Server Access: ' + serverId
+            };
+            HttpResponse paymentResponse = StripeAPI.charge(paymentData);
+            Boolean isSuccess = (Boolean) JSON.deserialize(paymentResponse.getBody(), Map<String, Object>.class).get('success');
+
+            if (isSuccess) {
+                // Update user status to premium
+                SalesforceDataCloudAPI.updateRecord('User', userId, new Map<String, Object>{'status' => 'premium'});
+                GeminiAPI.updateMongoDB('users', userId, new Map<String, Object>{'status' => 'premium'});
+            }
+            return isSuccess;
+        } catch (Exception e) {
+            throw new AuraHandledException('Payment failed: ' + e.getMessage());
+        }
+    }
+}
