@@ -1,0 +1,111 @@
+import requests
+import json
+from pymongo import MongoClient
+import twilio.rest
+import sendgrid
+from sendgrid.helpers.mail import Mail
+
+# MongoDB Setup
+mongo_client = MongoClient("mongodb+srv://<username>:<password>@cluster0.mongodb.net/gameforge")
+db = mongo_client["gameforge"]
+
+# API Credentials (replace with actual keys)
+SALESFORCE_LAM_URL = "https://api.salesforce.com/lam/provision"
+CLAUDE_API_URL = "https://api.anthropic.com/v1/complete"
+GEMINI_API_URL = "https://api.google.com/gemini/v1/query"
+CHATGPT_API_URL = "https://api.openai.com/v1/completions"
+ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+VEO3_API_URL = "https://api.google.com/veo3/generate"
+TWILIO_SID = "<your_twilio_sid>"
+TWILIO_AUTH = "<your_twilio_auth>"
+SENDGRID_API_KEY = "<your_sendgrid_key>"
+
+# Persuasion Engine
+def generate_invite(user_id, server_id, user_data):
+    # Statistician: Claude API for data-driven messaging
+    claude_payload = {
+        "prompt": f"Analyze user {user_id} with data {json.dumps(user_data)} and generate a persuasive statistic for joining server {server_id}.",
+        "model": "claude-3-opus",
+        "max_tokens": 100
+    }
+    claude_response = requests.post(CLAUDE_API_URL, json=claude_payload, headers={"x-api-key": "<claude_key>"})
+    stat_message = claude_response.json()["completion"]  # e.g., "90% of premium players rank higher!"
+
+    # Insurance Seller: ChatGPT for risk-free messaging
+    chatgpt_payload = {
+        "model": "gpt-4",
+        "prompt": f"Craft a reassuring message for user {user_id} to join server {server_id}, emphasizing risk-free benefits.",
+        "max_tokens": 50
+    }
+    chatgpt_response = requests.post(CHATGPT_API_URL, json=chatgpt_payload, headers={"Authorization": "Bearer <chatgpt_key>"})
+    insurance_message = chatgpt_response.json()["choices"][0]["text"]  # e.g., "Join risk-free with a 14-day refund!"
+
+    # College Recruiter: Gemini for aspirational messaging
+    gemini_payload = {
+        "query": f"Create an aspirational invite for user {user_id} to join server {server_id} as an elite gamer."
+    }
+    gemini_response = requests.post(GEMINI_API_URL, json=gemini_payload, headers={"Authorization": "Bearer <gemini_key>"})
+    recruiter_message = gemini_response.json()["result"]  # e.g., "Join the elite Guild and dominate!"
+
+    # Generate video with Google Veo3
+    veo3_payload = {
+        "userId": user_id,
+        "serverId": server_id,
+        "theme": "epic_battle",
+        "avatar": user_data.get("avatar", "default")
+    }
+    veo3_response = requests.post(VEO3_API_URL, json=veo3_payload, headers={"Authorization": "Bearer <veo3_key>"})
+    video_url = veo3_response.json()["videoUrl"]
+
+    # Generate voiceover with ElevenLabs
+    elevenlabs_payload = {
+        "text": f"Welcome, {user_data['username']}, to the elite Guild! Join server {server_id} now!",
+        "voice_id": "motivational_coach"
+    }
+    elevenlabs_response = requests.post(ELEVENLABS_API_URL, json=elevenlabs_payload, headers={"xi-api-key": "<elevenlabs_key>"})
+    voiceover_url = elevenlabs_response.json()["audioUrl"]
+
+    return {
+        "stat_message": stat_message,
+        "insurance_message": insurance_message,
+        "recruiter_message": recruiter_message,
+        "video_url": video_url,
+        "voiceover_url": voiceover_url
+    }
+
+# Send Invite
+def send_invite(user_id, server_id, invite_data):
+    user = db.users.find_one({"userId": user_id})
+    server = db.servers.find_one({"serverId": server_id})
+
+    # Email via SendGrid
+    email_content = f"""
+    Hi {user['username']},
+    {invite_data['stat_message']} (Statistician)
+    {invite_data['insurance_message']} (Insurance Seller)
+    {invite_data['recruiter_message']} (College Recruiter)
+    Watch your exclusive trailer: {invite_data['video_url']}
+    Join now: https://gameforge.io/join/{server_id}
+    """
+    mail = Mail(
+        from_email="no-reply@gameforge.io",
+        to_emails=user["email"],
+        subject=f"Join {server['name']} - Your Epic Gaming Adventure Awaits!",
+        html_content=email_content
+    )
+    sg = sendgrid.SendGridAPIClient(SENDGRID_API_KEY)
+    sg.send(mail)
+
+    # SMS via Twilio
+    twilio_client = twilio.rest.Client(TWILIO_SID, TWILIO_AUTH)
+    twilio_client.messages.create(
+        body=f"{user['username']}, join {server['name']}! {invite_data['stat_message']} {invite_data['insurance_message']} Link: https://gameforge.io/join/{server_id}",
+        from_="+1234567890",
+        to=user["phone"]
+    )
+
+# Example Usage
+user_data = {"userId": "u123", "username": "GamerX", "email": "gamerx@example.com", "phone": "+1234567890", "avatar": "warrior"}
+server_id = "s456"
+invite_data = generate_invite("u123", server_id, user_data)
+send_invite("u123", server_id, invite_data)
