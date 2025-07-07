@@ -1,0 +1,50 @@
+// gameforge_dashboard.js
+async function loadDashboard(userId) {
+    // Fetch user and server data from Salesforce
+    const response = await fetch(`/api/salesforce/user/${userId}`, {
+        headers: { "Authorization": "Bearer <salesforce_token>" }
+    });
+    const userData = await response.json();
+
+    // Display server status
+    const serverList = document.getElementById("server-list");
+    userData.servers.forEach(server => {
+        const serverCard = document.createElement("div");
+        serverCard.innerHTML = `
+            <h3>${server.name}</h3>
+            <p>Status: ${server.status}</p>
+            <p>Players: ${server.playerCount}</p>
+            <button onclick="joinServer('${server.serverId}')">${userData.status === 'premium' ? 'Join' : 'Unlock Premium'}</button>
+        `;
+        serverList.appendChild(serverCard);
+    });
+
+    // Display GuildMaster AI message
+    const guildMasterMessage = await fetchGuildMasterMessage(userId);
+    document.getElementById("guildmaster").innerHTML = `
+        <audio src="${guildMasterMessage.voiceoverUrl}" autoplay></audio>
+        <p>${guildMasterMessage.message}</p>
+    `;
+}
+
+async function joinServer(serverId) {
+    const paymentResponse = await fetch(`/api/salesforce/payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "u123", serverId, amount: 9.99 })
+    });
+    if (paymentResponse.ok) {
+        alert("Payment successful! Joining server...");
+        window.location.href = `/server/${serverId}`;
+    } else {
+        alert("Payment failed. Try again.");
+    }
+}
+
+async function fetchGuildMasterMessage(userId) {
+    const response = await fetch(`/api/claude/guildmaster/${userId}`);
+    return await response.json(); // { message: "Boost your skills...", voiceoverUrl: "..." }
+}
+
+// Initialize dashboard
+loadDashboard("u123");
